@@ -1,6 +1,6 @@
 import React from "react";
 import Breadcrumb from "../Common/Breadcrumb";
-import Link from "next/link";
+import { Link } from "@/i18n/routing";
 
 const MailSuccess = () => {
   return (

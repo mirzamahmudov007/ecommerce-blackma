@@ -1,10 +1,33 @@
-import React from "react";
-import Image from "next/image";
-import Link from "next/link";
+"use client";
+import React, { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { Link } from "@/i18n/routing";
 import ProductItem from "@/components/Common/ProductItem";
-import shopData from "@/components/Shop/shopData";
+import { marketplaceService } from "@/services/marketplaceService";
+import { useTranslations } from "next-intl";
 
 const NewArrival = () => {
+  const t = useTranslations();
+
+  const { data: businessesRes } = useQuery({
+    queryKey: ["businesses", 1],
+    queryFn: () => marketplaceService.getBusinesses(1, 1),
+  });
+
+  const businessId = businessesRes?.success && businessesRes.data?.items?.length > 0
+    ? businessesRes.data.items[0].id
+    : (businessesRes?.success && Array.isArray(businessesRes.data) && businessesRes.data.length > 0
+      ? businessesRes.data[0].id
+      : null);
+
+  const { data: productsRes, isLoading } = useQuery({
+    queryKey: ["new-arrivals", businessId],
+    queryFn: () => marketplaceService.getProducts(businessId!, 8),
+    enabled: !!businessId,
+  });
+
+  const products = productsRes?.success ? productsRes.data : [];
+
   return (
     <section className="overflow-hidden pt-15">
       <div className="max-w-[1170px] w-full mx-auto px-4 sm:px-8 xl:px-0">
@@ -31,10 +54,10 @@ const NewArrival = () => {
                   strokeLinecap="round"
                 />
               </svg>
-              This Week’s
+              {t("week_new")}
             </span>
             <h2 className="font-semibold text-xl xl:text-heading-5 text-dark">
-              New Arrivals
+              {t("new_arrivals")}
             </h2>
           </div>
 
@@ -42,14 +65,26 @@ const NewArrival = () => {
             href="/shop-with-sidebar"
             className="inline-flex font-medium text-custom-sm py-2.5 px-7 rounded-md border-gray-3 border bg-gray-1 text-dark ease-out duration-200 hover:bg-dark hover:text-white hover:border-transparent"
           >
-            View All
+            {t("view_all")}
           </Link>
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-x-7.5 gap-y-9">
-          {/* <!-- New Arrivals item --> */}
-          {shopData.map((item, key) => (
-            <ProductItem item={item} key={key} />
+          {products.map((item, idx) => (
+            <ProductItem
+              item={{
+                id: Number(item.id),
+                title: item.name,
+                price: item.price,
+                discountedPrice: item.price,
+                reviews: 0,
+                imgs: {
+                  thumbnails: [item.image],
+                  previews: [item.image]
+                }
+              }}
+              key={item.id || idx}
+            />
           ))}
         </div>
       </div>

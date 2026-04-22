@@ -5,7 +5,7 @@ import OrderSummary from "./OrderSummary";
 import { useAppSelector } from "@/redux/store";
 import SingleItem from "./SingleItem";
 import Breadcrumb from "../Common/Breadcrumb";
-import Link from "next/link";
+import { Link } from "@/i18n/routing";
 
 const Cart = () => {
   const cartItems = useAppSelector((state) => state.cartReducer.items);

@@ -1,16 +1,22 @@
 "use client";
 import { Swiper, SwiperSlide } from "swiper/react";
 import { useCallback, useRef, useEffect } from "react";
-import data from "./categoryData";
-import Image from "next/image";
-
-// Import Swiper styles
+import { useQuery } from "@tanstack/react-query";
+import { marketplaceService } from "@/services/marketplaceService";
+import { useTranslations } from "next-intl";
 import "swiper/css/navigation";
 import "swiper/css";
 import SingleItem from "./SingleItem";
 
 const Categories = () => {
-  const sliderRef = useRef(null);
+  const sliderRef = useRef<any>(null);
+  const t = useTranslations();
+
+  // Fetch global main categories
+  const { data: categoriesRes, isLoading } = useQuery({
+    queryKey: ["global-categories"],
+    queryFn: () => marketplaceService.getMainCategories(),
+  });
 
   const handlePrev = useCallback(() => {
     if (!sliderRef.current) return;
@@ -27,6 +33,22 @@ const Categories = () => {
       sliderRef.current.swiper.init();
     }
   }, []);
+
+  if (isLoading) {
+    return (
+      <section className="pt-17.5">
+        <div className="max-w-[1170px] w-full mx-auto px-4 sm:px-8 xl:px-0">
+          <div className="h-40 flex items-center justify-center">
+            <div className="animate-spin rounded-full h-10 w-10 border-t-2 border-b-2 border-blue"></div>
+          </div>
+        </div>
+      </section>
+    );
+  }
+
+  const categories = categoriesRes?.code === 200 ? categoriesRes.data : [];
+
+  if (categories.length === 0) return null;
 
   return (
     <section className="overflow-hidden pt-17.5">
@@ -70,10 +92,10 @@ const Categories = () => {
                     </clipPath>
                   </defs>
                 </svg>
-                Categories
+                {t("categories")}
               </span>
               <h2 className="font-semibold text-xl xl:text-heading-5 text-dark">
-                Browse by Category
+                {t("browse_category")}
               </h2>
             </div>
 
@@ -120,22 +142,13 @@ const Categories = () => {
             ref={sliderRef}
             slidesPerView={6}
             breakpoints={{
-              // when window width is >= 640px
-              0: {
-                slidesPerView: 2,
-              },
-              1000: {
-                slidesPerView: 4,
-                // spaceBetween: 4,
-              },
-              // when window width is >= 768px
-              1200: {
-                slidesPerView: 6,
-              },
+              0: { slidesPerView: 2 },
+              1000: { slidesPerView: 4 },
+              1200: { slidesPerView: 6 },
             }}
           >
-            {data.map((item, key) => (
-              <SwiperSlide key={key}>
+            {categories.map((item: any) => (
+              <SwiperSlide key={item.id}>
                 <SingleItem item={item} />
               </SwiperSlide>
             ))}

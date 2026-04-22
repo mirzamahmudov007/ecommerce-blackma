@@ -1,21 +1,64 @@
-"use client";
-import React, { useState } from "react";
+import { useState, useEffect, Suspense } from "react";
+import { useSearchParams } from "next/navigation";
 import Breadcrumb from "../Common/Breadcrumb";
 
 import SingleGridItem from "../Shop/SingleGridItem";
 import SingleListItem from "../Shop/SingleListItem";
 import CustomSelect from "../ShopWithSidebar/CustomSelect";
 
-import shopData from "../Shop/shopData";
+import { marketplaceService } from "@/services/marketplaceService";
+import { mapApiProductToProduct } from "@/utils/mapper";
+import { Product } from "@/types/product";
 
-const ShopWithoutSidebar = () => {
+const ShopWithoutSidebarContent = () => {
+  const searchParams = useSearchParams();
+  const businessIdParam = searchParams.get("businessId");
+  const categoryIdParam = searchParams.get("categoryId");
+
   const [productStyle, setProductStyle] = useState("grid");
+  const [products, setProducts] = useState<Product[]>([]);
+  const [loading, setLoading] = useState(true);
 
   const options = [
     { label: "Latest Products", value: "0" },
     { label: "Best Selling", value: "1" },
     { label: "Old Products", value: "2" },
   ];
+
+  useEffect(() => {
+    const fetchShopData = async () => {
+      try {
+        setLoading(true);
+        let businessId = businessIdParam;
+
+        if (!businessId) {
+          // Fetch first business if not provided in URL
+          const bRes = await marketplaceService.getBusinesses(1, 1);
+          if (bRes.success && bRes.data.items.length > 0) {
+            businessId = bRes.data.items[0].id;
+          }
+        }
+
+        if (businessId) {
+          const pRes = await marketplaceService.getProducts(
+            businessId,
+            20,
+            0,
+            categoryIdParam || undefined
+          );
+          if (pRes.success) {
+            setProducts(pRes.data.map(mapApiProductToProduct));
+          }
+        }
+      } catch (error) {
+        console.error("Failed to fetch shop data:", error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchShopData();
+  }, [businessIdParam, categoryIdParam]);
 
   return (
     <>
@@ -35,7 +78,7 @@ const ShopWithoutSidebar = () => {
                     <CustomSelect options={options} />
 
                     <p>
-                      Showing <span className="text-dark">9 of 50</span>{" "}
+                      Showing <span className="text-dark">{products.length}</span>{" "}
                       Products
                     </p>
                   </div>
@@ -45,11 +88,10 @@ const ShopWithoutSidebar = () => {
                     <button
                       onClick={() => setProductStyle("grid")}
                       aria-label="button for product grid tab"
-                      className={`${
-                        productStyle === "grid"
-                          ? "bg-blue border-blue text-white"
-                          : "text-dark bg-gray-1 border-gray-3"
-                      } flex items-center justify-center w-10.5 h-9 rounded-[5px] border ease-out duration-200 hover:bg-blue hover:border-blue hover:text-white`}
+                      className={`${productStyle === "grid"
+                        ? "bg-blue border-blue text-white"
+                        : "text-dark bg-gray-1 border-gray-3"
+                        } flex items-center justify-center w-10.5 h-9 rounded-[5px] border ease-out duration-200 hover:bg-blue hover:border-blue hover:text-white`}
                     >
                       <svg
                         className="fill-current"
@@ -89,11 +131,10 @@ const ShopWithoutSidebar = () => {
                     <button
                       onClick={() => setProductStyle("list")}
                       aria-label="button for product list tab"
-                      className={`${
-                        productStyle === "list"
-                          ? "bg-blue border-blue text-white"
-                          : "text-dark bg-gray-1 border-gray-3"
-                      } flex items-center justify-center w-10.5 h-9 rounded-[5px] border ease-out duration-200 hover:bg-blue hover:border-blue hover:text-white`}
+                      className={`${productStyle === "list"
+                        ? "bg-blue border-blue text-white"
+                        : "text-dark bg-gray-1 border-gray-3"
+                        } flex items-center justify-center w-10.5 h-9 rounded-[5px] border ease-out duration-200 hover:bg-blue hover:border-blue hover:text-white`}
                     >
                       <svg
                         className="fill-current"
@@ -122,21 +163,30 @@ const ShopWithoutSidebar = () => {
               </div>
 
               {/* <!-- Products Grid Tab Content Start --> */}
-              <div
-                className={`${
-                  productStyle === "grid"
+              {loading ? (
+                <div className="text-center py-20 font-medium text-dark">
+                  Mahsulotlar yuklanmoqda...
+                </div>
+              ) : products.length === 0 ? (
+                <div className="text-center py-20 font-medium text-dark">
+                  Mahsulotlar topilmadi.
+                </div>
+              ) : (
+                <div
+                  className={`${productStyle === "grid"
                     ? "grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-x-7.5 gap-y-9"
                     : "flex flex-col gap-7.5"
-                }`}
-              >
-                {shopData.map((item, key) =>
-                  productStyle === "grid" ? (
-                    <SingleGridItem item={item} key={key} />
-                  ) : (
-                    <SingleListItem item={item} key={key} />
-                  )
-                )}
-              </div>
+                    }`}
+                >
+                  {products.map((item) =>
+                    productStyle === "grid" ? (
+                      <SingleGridItem item={item} key={item.id} />
+                    ) : (
+                      <SingleListItem item={item} key={item.id} />
+                    )
+                  )}
+                </div>
+              )}
               {/* <!-- Products Grid Tab Content End --> */}
 
               {/* <!-- Products Pagination Start --> */}
@@ -262,6 +312,14 @@ const ShopWithoutSidebar = () => {
         </div>
       </section>
     </>
+  );
+};
+
+const ShopWithoutSidebar = () => {
+  return (
+    <Suspense fallback={<div>Loading...</div>}>
+      <ShopWithoutSidebarContent />
+    </Suspense>
   );
 };
 

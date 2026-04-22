@@ -9,7 +9,7 @@ import {
 import { useAppSelector } from "@/redux/store";
 import { useSelector } from "react-redux";
 import SingleItem from "./SingleItem";
-import Link from "next/link";
+import { Link } from "@/i18n/routing";
 import EmptyCart from "./EmptyCart";
 
 const CartSidebarModal = () => {

@@ -1,14 +1,35 @@
+"use client";
 import { useState } from 'react';
 import RangeSlider from 'react-range-slider-input';
 import 'react-range-slider-input/dist/style.css';
+import { useTranslations } from "next-intl";
 
-const PriceDropdown = () => {
+interface PriceDropdownProps {
+  minPrice?: number;
+  maxPrice?: number;
+  onPriceChange: (min: number, max: number) => void;
+}
+
+const PriceDropdown = ({ minPrice = 0, maxPrice = 1000, onPriceChange }: PriceDropdownProps) => {
   const [toggleDropdown, setToggleDropdown] = useState(true);
+  const t = useTranslations();
 
   const [selectedPrice, setSelectedPrice] = useState({
-    from: 0,
-    to: 100,
+    from: minPrice,
+    to: maxPrice,
   });
+
+  const handleInput = (e: any) => {
+    const from = Math.floor(e[0]);
+    const to = Math.ceil(e[1]);
+    setSelectedPrice({ from, to });
+  };
+
+  const handleThumbEnd = (e: any) => {
+    const from = Math.floor(e[0]);
+    const to = Math.ceil(e[1]);
+    onPriceChange(from, to);
+  };
 
   return (
     <div className="bg-white shadow-1 rounded-lg">
@@ -16,14 +37,13 @@ const PriceDropdown = () => {
         onClick={() => setToggleDropdown(!toggleDropdown)}
         className="cursor-pointer flex items-center justify-between py-3 pl-6 pr-5.5"
       >
-        <p className="text-dark">Price</p>
+        <p className="text-dark">{t("price")}</p>
         <button
           onClick={() => setToggleDropdown(!toggleDropdown)}
           id="price-dropdown-btn"
           aria-label="button for price dropdown"
-          className={`text-dark ease-out duration-200 ${
-            toggleDropdown && 'rotate-180'
-          }`}
+          className={`text-dark ease-out duration-200 ${toggleDropdown && 'rotate-180'
+            }`}
         >
           <svg
             className="fill-current"
@@ -43,38 +63,36 @@ const PriceDropdown = () => {
         </button>
       </div>
 
-      {/* // <!-- dropdown menu --> */}
       <div className={`p-6 ${toggleDropdown ? 'block' : 'hidden'}`}>
         <div id="pricingOne">
           <div className="price-range">
             <RangeSlider
               id="range-slider-gradient"
               className="margin-lg"
-              step={'any'}
-              onInput={(e) =>
-                setSelectedPrice({
-                  from: Math.floor(e[0]),
-                  to: Math.ceil(e[1]),
-                })
-              }
+              step={10}
+              min={0}
+              max={1000000} // Assuming a larger range for actual prices
+              value={[selectedPrice.from, selectedPrice.to]}
+              onInput={handleInput}
+              onThumbDragEnd={handleThumbEnd}
             />
 
             <div className="price-amount flex items-center justify-between pt-4">
               <div className="text-custom-xs text-dark-4 flex rounded border border-gray-3/80">
                 <span className="block border-r border-gray-3/80 px-2.5 py-1.5">
-                  $
+                  SUM
                 </span>
                 <span id="minAmount" className="block px-3 py-1.5">
-                  {selectedPrice.from}
+                  {selectedPrice.from.toLocaleString()}
                 </span>
               </div>
 
               <div className="text-custom-xs text-dark-4 flex rounded border border-gray-3/80">
                 <span className="block border-r border-gray-3/80 px-2.5 py-1.5">
-                  $
+                  SUM
                 </span>
                 <span id="maxAmount" className="block px-3 py-1.5">
-                  {selectedPrice.to}
+                  {selectedPrice.to.toLocaleString()}
                 </span>
               </div>
             </div>

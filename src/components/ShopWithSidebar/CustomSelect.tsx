@@ -1,3 +1,4 @@
+"use client";
 import React, { useState, useEffect, useRef } from "react";
 
 const CustomSelect = ({ options }) => {
@@ -37,9 +38,8 @@ const CustomSelect = ({ options }) => {
       ref={selectRef}
     >
       <div
-        className={`select-selected whitespace-nowrap ${
-          isOpen ? "select-arrow-active" : ""
-        }`}
+        className={`select-selected whitespace-nowrap ${isOpen ? "select-arrow-active" : ""
+          }`}
         onClick={toggleDropdown}
       >
         {selectedOption.label}
@@ -49,9 +49,8 @@ const CustomSelect = ({ options }) => {
           <div
             key={index}
             onClick={() => handleOptionClick(option)}
-            className={`select-item ${
-              selectedOption === option ? "same-as-selected" : ""
-            }`}
+            className={`select-item ${selectedOption === option ? "same-as-selected" : ""
+              }`}
           >
             {option.label}
           </div>

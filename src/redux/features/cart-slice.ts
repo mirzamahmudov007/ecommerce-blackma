@@ -6,7 +6,7 @@ type InitialState = {
 };
 
 type CartItem = {
-  id: number;
+  id: string;
   title: string;
   price: number;
   discountedPrice: number;
@@ -15,6 +15,8 @@ type CartItem = {
     thumbnails: string[];
     previews: string[];
   };
+  businessId?: string;
+  branchId?: string;
 };
 
 const initialState: InitialState = {
@@ -26,7 +28,7 @@ export const cart = createSlice({
   initialState,
   reducers: {
     addItemToCart: (state, action: PayloadAction<CartItem>) => {
-      const { id, title, price, quantity, discountedPrice, imgs } =
+      const { id, title, price, quantity, discountedPrice, imgs, businessId, branchId } =
         action.payload;
       const existingItem = state.items.find((item) => item.id === id);
 
@@ -40,16 +42,18 @@ export const cart = createSlice({
           quantity,
           discountedPrice,
           imgs,
+          businessId,
+          branchId,
         });
       }
     },
-    removeItemFromCart: (state, action: PayloadAction<number>) => {
+    removeItemFromCart: (state, action: PayloadAction<string>) => {
       const itemId = action.payload;
       state.items = state.items.filter((item) => item.id !== itemId);
     },
     updateCartItemQuantity: (
       state,
-      action: PayloadAction<{ id: number; quantity: number }>
+      action: PayloadAction<{ id: string; quantity: number }>
     ) => {
       const { id, quantity } = action.payload;
       const existingItem = state.items.find((item) => item.id === id);

@@ -1,20 +1,40 @@
 "use client";
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, Suspense } from "react";
+import { useSearchParams, useRouter, usePathname } from "next/navigation";
 import Breadcrumb from "../Common/Breadcrumb";
 import CustomSelect from "./CustomSelect";
 import CategoryDropdown from "./CategoryDropdown";
-import GenderDropdown from "./GenderDropdown";
-import SizeDropdown from "./SizeDropdown";
-import ColorsDropdwon from "./ColorsDropdwon";
 import PriceDropdown from "./PriceDropdown";
-import shopData from "../Shop/shopData";
+import BusinessDropdown from "./BusinessDropdown";
 import SingleGridItem from "../Shop/SingleGridItem";
 import SingleListItem from "../Shop/SingleListItem";
+import { marketplaceService } from "@/services/marketplaceService";
+import { mapApiProductToProduct } from "@/utils/mapper";
+import { Product } from "@/types/product";
+import { Category, Business, GlobalSubCategory } from "@/types/api";
+import { useTranslations } from "next-intl";
 
-const ShopWithSidebar = () => {
+const ShopWithSidebarContent = () => {
+  const searchParams = useSearchParams();
+  const businessIdParam = searchParams.get("businessId");
+  const categoryIdParam = searchParams.get("categoryId");
+
+  const router = useRouter();
+  const pathname = usePathname();
+  const t = useTranslations();
+
   const [productStyle, setProductStyle] = useState("grid");
   const [productSidebar, setProductSidebar] = useState(false);
   const [stickyMenu, setStickyMenu] = useState(false);
+  const [products, setProducts] = useState<Product[]>([]);
+  const [apiCategories, setApiCategories] = useState<Category[]>([]);
+  const [apiSubCategories, setApiSubCategories] = useState<GlobalSubCategory[]>([]);
+  const [allBusinesses, setAllBusinesses] = useState<Business[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  const minPriceParam = searchParams.get("minPrice");
+  const maxPriceParam = searchParams.get("maxPrice");
+  const searchParam = searchParams.get("search");
 
   const handleStickyMenu = () => {
     if (window.scrollY >= 80) {
@@ -25,65 +45,121 @@ const ShopWithSidebar = () => {
   };
 
   const options = [
-    { label: "Latest Products", value: "0" },
-    { label: "Best Selling", value: "1" },
-    { label: "Old Products", value: "2" },
+    { label: t("latest_products"), value: "0" },
+    { label: t("best_selling"), value: "1" },
+    { label: t("old_products"), value: "2" },
   ];
 
-  const categories = [
-    {
-      name: "Desktop",
-      products: 10,
-      isRefined: true,
-    },
-    {
-      name: "Laptop",
-      products: 12,
-      isRefined: false,
-    },
-    {
-      name: "Monitor",
-      products: 30,
-      isRefined: false,
-    },
-    {
-      name: "UPS",
-      products: 23,
-      isRefined: false,
-    },
-    {
-      name: "Phone",
-      products: 10,
-      isRefined: false,
-    },
-    {
-      name: "Watch",
-      products: 13,
-      isRefined: false,
-    },
-  ];
+  useEffect(() => {
+    const fetchShopData = async () => {
+      try {
+        setLoading(true);
 
-  const genders = [
-    {
-      name: "Men",
-      products: 10,
-    },
-    {
-      name: "Women",
-      products: 23,
-    },
-    {
-      name: "Unisex",
-      products: 8,
-    },
-  ];
+        // Fetch all businesses first to show search/filter options
+        const bAllRes = await marketplaceService.getBusinesses(1, 50);
+        if (bAllRes.success) {
+          const items = Array.isArray(bAllRes.data) ? bAllRes.data : (bAllRes.data as any).items || [];
+          setAllBusinesses(items);
+        }
+
+        let businessId = businessIdParam;
+
+        if (!businessId) {
+          if (bAllRes.success && bAllRes.data?.items?.length > 0) {
+            businessId = bAllRes.data.items[0].id;
+          }
+        }
+
+        if (businessId) {
+          // Fetch categories and products in parallel
+          const [pRes, cRes] = await Promise.all([
+            marketplaceService.getProducts(
+              businessId,
+              20,
+              0,
+              {
+                categoryId: categoryIdParam || undefined,
+                minPrice: minPriceParam ? parseInt(minPriceParam) : undefined,
+                maxPrice: maxPriceParam ? parseInt(maxPriceParam) : undefined,
+                search: searchParam || undefined,
+              }
+            ),
+            marketplaceService.getCategories(businessId)
+          ]);
+
+          if (pRes.success) {
+            const productItems = Array.isArray(pRes.data) ? pRes.data : (pRes.data as any).items || [];
+            setProducts(productItems.map(mapApiProductToProduct));
+          }
+          if (cRes.success) {
+            const categoryItems = Array.isArray(cRes.data) ? cRes.data : (cRes.data as any).items || [];
+            setApiCategories(categoryItems);
+          }
+        }
+
+        // If a category is selected, fetch sub-categories
+        if (categoryIdParam) {
+          const scRes = await marketplaceService.getSubCategories(categoryIdParam);
+          if (scRes.code === 200) {
+            setApiSubCategories(scRes.data);
+          }
+        } else {
+          setApiSubCategories([]);
+        }
+      } catch (error) {
+        console.error("Failed to fetch shop data:", error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchShopData();
+  }, [businessIdParam, categoryIdParam, minPriceParam, maxPriceParam, searchParam]);
+
+  const handleCategoryClick = (categoryId: string) => {
+    const params = new URLSearchParams(searchParams.toString());
+    if (categoryId === categoryIdParam) {
+      params.delete("categoryId");
+    } else {
+      params.set("categoryId", categoryId);
+    }
+    router.push(`${pathname}?${params.toString()}`);
+  };
+
+  const handleBusinessClick = (businessId: string) => {
+    const params = new URLSearchParams(searchParams.toString());
+    if (businessId === businessIdParam) {
+      params.delete("businessId");
+    } else {
+      params.set("businessId", businessId);
+      // Reset category when business changes
+      params.delete("categoryId");
+    }
+    router.push(`${pathname}?${params.toString()}`);
+  };
+
+  const handlePriceChange = (min: number, max: number) => {
+    const params = new URLSearchParams(searchParams.toString());
+    params.set("minPrice", min.toString());
+    params.set("maxPrice", max.toString());
+    router.push(`${pathname}?${params.toString()}`);
+  };
+
+  const handleClearFilters = () => {
+    const params = new URLSearchParams(searchParams.toString());
+    params.delete("categoryId");
+    params.delete("minPrice");
+    params.delete("maxPrice");
+    params.delete("search");
+    router.push(`${pathname}?${params.toString()}`);
+  };
 
   useEffect(() => {
     window.addEventListener("scroll", handleStickyMenu);
 
-    // closing sidebar while clicking outside
-    function handleClickOutside(event) {
-      if (!event.target.closest(".sidebar-content")) {
+    function handleClickOutside(event: MouseEvent) {
+      const sidebar = document.querySelector(".sidebar-content");
+      if (sidebar && !sidebar.contains(event.target as Node)) {
         setProductSidebar(false);
       }
     }
@@ -93,35 +169,34 @@ const ShopWithSidebar = () => {
     }
 
     return () => {
+      window.removeEventListener("scroll", handleStickyMenu);
       document.removeEventListener("mousedown", handleClickOutside);
     };
-  });
+  }, [productSidebar]);
 
   return (
     <>
       <Breadcrumb
-        title={"Explore All Products"}
-        pages={["shop", "/", "shop with sidebar"]}
+        title={t("explore_all")}
+        pages={[t("shop"), "/", t("shop_with_sidebar")]}
       />
       <section className="overflow-hidden relative pb-20 pt-5 lg:pt-20 xl:pt-28 bg-[#f3f4f6]">
         <div className="max-w-[1170px] w-full mx-auto px-4 sm:px-8 xl:px-0">
           <div className="flex gap-7.5">
             {/* <!-- Sidebar Start --> */}
             <div
-              className={`sidebar-content fixed xl:z-1 z-9999 left-0 top-0 xl:translate-x-0 xl:static max-w-[310px] xl:max-w-[270px] w-full ease-out duration-200 ${
-                productSidebar
-                  ? "translate-x-0 bg-white p-5 h-screen overflow-y-auto"
-                  : "-translate-x-full"
-              }`}
+              className={`sidebar-content fixed xl:z-1 z-9999 left-0 top-0 xl:translate-x-0 xl:static max-w-[310px] xl:max-w-[270px] w-full ease-out duration-200 ${productSidebar
+                ? "translate-x-0 bg-white p-5 h-screen overflow-y-auto"
+                : "-translate-x-full"
+                }`}
             >
               <button
                 onClick={() => setProductSidebar(!productSidebar)}
                 aria-label="button for product sidebar toggle"
-                className={`xl:hidden absolute -right-12.5 sm:-right-8 flex items-center justify-center w-8 h-8 rounded-md bg-white shadow-1 ${
-                  stickyMenu
-                    ? "lg:top-20 sm:top-34.5 top-35"
-                    : "lg:top-24 sm:top-39 top-37"
-                }`}
+                className={`xl:hidden absolute -right-12.5 sm:-right-8 flex items-center justify-center w-8 h-8 rounded-md bg-white shadow-1 ${stickyMenu
+                  ? "lg:top-20 sm:top-34.5 top-35"
+                  : "lg:top-24 sm:top-39 top-37"
+                  }`}
               >
                 <svg
                   className="fill-current"
@@ -151,25 +226,55 @@ const ShopWithSidebar = () => {
                   {/* <!-- filter box --> */}
                   <div className="bg-white shadow-1 rounded-lg py-4 px-5">
                     <div className="flex items-center justify-between">
-                      <p>Filters:</p>
-                      <button className="text-blue">Clean All</button>
+                      <p>{t("filters")}:</p>
+                      <button
+                        type="button"
+                        onClick={handleClearFilters}
+                        className="text-blue"
+                      >
+                        {t("clean_all")}
+                      </button>
                     </div>
                   </div>
 
+                  {/* <!-- business box --> */}
+                  <BusinessDropdown
+                    businesses={allBusinesses}
+                    activeBusinessId={businessIdParam}
+                    onBusinessClick={handleBusinessClick}
+                  />
+
                   {/* <!-- category box --> */}
-                  <CategoryDropdown categories={categories} />
+                  <CategoryDropdown
+                    categories={apiCategories}
+                    activeCategoryId={categoryIdParam}
+                    onCategoryClick={handleCategoryClick}
+                  />
 
-                  {/* <!-- gender box --> */}
-                  <GenderDropdown genders={genders} />
-
-                  {/* // <!-- size box --> */}
-                  <SizeDropdown />
-
-                  {/* // <!-- color box --> */}
-                  <ColorsDropdwon />
+                  {/* <!-- sub-category box --> */}
+                  {apiSubCategories.length > 0 && (
+                    <CategoryDropdown
+                      label={t("sub_categories")}
+                      categories={apiSubCategories as any}
+                      activeCategoryId={searchParams.get("subCategoryId")}
+                      onCategoryClick={(id) => {
+                        const params = new URLSearchParams(searchParams.toString());
+                        if (id === searchParams.get("subCategoryId")) {
+                          params.delete("subCategoryId");
+                        } else {
+                          params.set("subCategoryId", id);
+                        }
+                        router.push(`${pathname}?${params.toString()}`);
+                      }}
+                    />
+                  )}
 
                   {/* // <!-- price range box --> */}
-                  <PriceDropdown />
+                  <PriceDropdown
+                    minPrice={minPriceParam ? parseInt(minPriceParam) : 0}
+                    maxPrice={maxPriceParam ? parseInt(maxPriceParam) : 1000000}
+                    onPriceChange={handlePriceChange}
+                  />
                 </div>
               </form>
             </div>
@@ -184,8 +289,8 @@ const ShopWithSidebar = () => {
                     <CustomSelect options={options} />
 
                     <p>
-                      Showing <span className="text-dark">9 of 50</span>{" "}
-                      Products
+                      {t("showing")} <span className="text-dark">{products.length}</span>{" "}
+                      {t("products")}
                     </p>
                   </div>
 
@@ -194,11 +299,10 @@ const ShopWithSidebar = () => {
                     <button
                       onClick={() => setProductStyle("grid")}
                       aria-label="button for product grid tab"
-                      className={`${
-                        productStyle === "grid"
-                          ? "bg-blue border-blue text-white"
-                          : "text-dark bg-gray-1 border-gray-3"
-                      } flex items-center justify-center w-10.5 h-9 rounded-[5px] border ease-out duration-200 hover:bg-blue hover:border-blue hover:text-white`}
+                      className={`${productStyle === "grid"
+                        ? "bg-blue border-blue text-white"
+                        : "text-dark bg-gray-1 border-gray-3"
+                        } flex items-center justify-center w-10.5 h-9 rounded-[5px] border ease-out duration-200 hover:bg-blue hover:border-blue hover:text-white`}
                     >
                       <svg
                         className="fill-current"
@@ -238,11 +342,10 @@ const ShopWithSidebar = () => {
                     <button
                       onClick={() => setProductStyle("list")}
                       aria-label="button for product list tab"
-                      className={`${
-                        productStyle === "list"
-                          ? "bg-blue border-blue text-white"
-                          : "text-dark bg-gray-1 border-gray-3"
-                      } flex items-center justify-center w-10.5 h-9 rounded-[5px] border ease-out duration-200 hover:bg-blue hover:border-blue hover:text-white`}
+                      className={`${productStyle === "list"
+                        ? "bg-blue border-blue text-white"
+                        : "text-dark bg-gray-1 border-gray-3"
+                        } flex items-center justify-center w-10.5 h-9 rounded-[5px] border ease-out duration-200 hover:bg-blue hover:border-blue hover:text-white`}
                     >
                       <svg
                         className="fill-current"
@@ -272,18 +375,23 @@ const ShopWithSidebar = () => {
 
               {/* <!-- Products Grid Tab Content Start --> */}
               <div
-                className={`${
-                  productStyle === "grid"
-                    ? "grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-7.5 gap-y-9"
-                    : "flex flex-col gap-7.5"
-                }`}
+                className={`${productStyle === "grid"
+                  ? "grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-x-7.5 gap-y-9"
+                  : "flex flex-col gap-7.5"
+                  }`}
               >
-                {shopData.map((item, key) =>
-                  productStyle === "grid" ? (
-                    <SingleGridItem item={item} key={key} />
-                  ) : (
-                    <SingleListItem item={item} key={key} />
+                {loading ? (
+                  <div>{t("loading")}</div>
+                ) : products.length > 0 ? (
+                  products.map((item, key) =>
+                    productStyle === "grid" ? (
+                      <SingleGridItem item={item} key={key} />
+                    ) : (
+                      <SingleListItem item={item} key={key} />
+                    )
                   )
+                ) : (
+                  <div>{t("no_products")}</div>
                 )}
               </div>
               {/* <!-- Products Grid Tab Content End --> */}
@@ -381,8 +489,8 @@ const ShopWithSidebar = () => {
 
                     <li>
                       <button
-                        id="paginationLeft"
-                        aria-label="button for pagination left"
+                        id="paginationRight"
+                        aria-label="button for pagination right"
                         type="button"
                         className="flex items-center justify-center w-8 h-9 ease-out duration-200 rounded-[3px] hover:text-white hover:bg-blue disabled:text-gray-4"
                       >
@@ -411,6 +519,14 @@ const ShopWithSidebar = () => {
         </div>
       </section>
     </>
+  );
+};
+
+const ShopWithSidebar = () => {
+  return (
+    <Suspense fallback={<div>Loading...</div>}>
+      <ShopWithSidebarContent />
+    </Suspense>
   );
 };
 
